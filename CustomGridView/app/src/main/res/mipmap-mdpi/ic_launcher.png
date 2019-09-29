@@ -1,0 +1,56 @@
+package com.watslive.android.view.Home.fragment;
+
+
+import android.app.ProgressDialog;
+import android.arch.lifecycle.Observer;
+import android.arch.lifecycle.ViewModelProviders;
+import android.graphics.Paint;
+import android.location.Location;
+import android.support.annotation.Nullable;
+import android.support.v4.content.res.ResourcesCompat;
+import android.support.v7.widget.DefaultItemAnimator;
+import android.support.v7.widget.GridLayoutManager;
+import android.util.DisplayMetrics;
+import android.util.Log;
+import android.view.KeyEvent;
+import android.view.View;
+import android.view.ViewTreeObserver;
+import android.view.animation.AlphaAnimation;
+import android.view.animation.Animation;
+import android.widget.SeekBar;
+import android.widget.Toast;
+
+import com.github.florent37.androidslidr.RangeValueFormatter;
+import com.github.florent37.androidslidr.Slidr;
+import com.google.android.gms.maps.model.LatLng;
+import com.watslive.android.Base.BaseFragment;
+import com.watslive.android.R;
+import com.watslive.android.databinding.FragmentFilterByDistanceBinding;
+import com.watslive.android.models.responseModel.CategoryData;
+import com.watslive.android.models.responseModel.CategoryResponseModel;
+import com.watslive.android.models.tickerModel.TickerModel;
+import com.watslive.android.network.ApiClient;
+
+import com.watslive.android.utils.Tools;
+import com.watslive.android.view.Home.HomeActivity;
+import com.watslive.android.view.Home.HomeViewModel;
+import com.watslive.android.view.Home.adapter.Adaptercallback;
+import com.watslive.android.view.Home.adapter.GridAdapter;
+
+import com.watslive.android.view.video.VideoMarkerActivity;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+
+import io.reactivex.Observable;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.functions.Consumer;
+import io.reactivex.schedulers.Schedulers;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
+
+public class FilterByDistanceFragment exte

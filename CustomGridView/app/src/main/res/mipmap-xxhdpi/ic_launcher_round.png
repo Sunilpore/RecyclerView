@@ -1,0 +1,266 @@
+package com.watslive.android.view.Home.fragment;
+
+
+import android.app.ProgressDialog;
+import android.arch.lifecycle.Observer;
+import android.arch.lifecycle.ViewModelProviders;
+import android.graphics.Paint;
+import android.location.Location;
+import android.support.annotation.Nullable;
+import android.support.v4.content.res.ResourcesCompat;
+import android.support.v7.widget.DefaultItemAnimator;
+import android.support.v7.widget.GridLayoutManager;
+import android.util.DisplayMetrics;
+import android.util.Log;
+import android.view.KeyEvent;
+import android.view.View;
+import android.view.ViewTreeObserver;
+import android.view.animation.AlphaAnimation;
+import android.view.animation.Animation;
+import android.widget.SeekBar;
+import android.widget.Toast;
+
+import com.github.florent37.androidslidr.RangeValueFormatter;
+import com.github.florent37.androidslidr.Slidr;
+import com.google.android.gms.maps.model.LatLng;
+import com.watslive.android.Base.BaseFragment;
+import com.watslive.android.R;
+import com.watslive.android.databinding.FragmentFilterByDistanceBinding;
+import com.watslive.android.models.responseModel.CategoryData;
+import com.watslive.android.models.responseModel.CategoryResponseModel;
+import com.watslive.android.models.tickerModel.TickerModel;
+import com.watslive.android.network.ApiClient;
+
+import com.watslive.android.utils.Tools;
+import com.watslive.android.view.Home.HomeActivity;
+import com.watslive.android.view.Home.HomeViewModel;
+import com.watslive.android.view.Home.adapter.Adaptercallback;
+import com.watslive.android.view.Home.adapter.GridAdapter;
+
+import com.watslive.android.view.video.VideoMarkerActivity;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+
+import io.reactivex.Observable;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.functions.Consumer;
+import io.reactivex.schedulers.Schedulers;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
+
+public class FilterByDistanceFragment extends BaseFragment<FragmentFilterByDistanceBinding> implements Adaptercallback, VideoMarkerActivity.CallableMapper {
+
+    HomeViewModel viewModel;
+    float distance = 1;
+    RangeValueFormatter ticketRangeFormatter;
+    List<CategoryData> categories = new ArrayList<>();
+    GridAdapter gridAdapter;
+    String categoryid;
+    ProgressDialog progressDialog;
+    Disposable tickerObservable;
+    String lat, longi;
+    int height;
+    final Animation inAnim = new AlphaAnimation(0.0f, 1.0f);
+    private int TICKER_INTERVAL=60, TICKER_ANIM_DUR = 3000;
+
+
+    public FilterByDistanceFragment() {
+
+    }
+
+    @Override
+    protected void onBinding() {
+
+        ((HomeActivity) getActivity()).getSupportActionBar().hide();
+
+        removeView();
+
+
+        viewModel = ViewModelProviders.of(getActivity()).get(HomeViewModel.class);
+        mBinding.whatsliveLogo.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+
+                searchVideos();
+
+
+
+            }
+        });
+
+       // mBinding.tickerView.setSelected(true);
+        mBinding.tickerView.setBackgroundColor(getResources().getColor(R.color.colorPrimary));
+        mBinding.tickerLayout.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+
+            }
+        });
+
+        mBinding.floatingMapBut.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                searchVideosonMap();
+            }
+        });
+
+       /* mBinding.mapLayout.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                mBinding.maptext.setAlpha(0.3f);
+
+                searchVideosonMap();
+
+            }
+        });*/
+
+        mBinding.searchSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
+                distance = i;
+                int val = (i * (seekBar.getWidth() - 2 * seekBar.getThumbOffset())) / seekBar.getMax();
+
+                if(distance>0){
+                    mBinding.textSeekbar.setText(i + "KM");
+                }else {
+                    distance = (float) 0.1;
+                    mBinding.textSeekbar.setText("100 M");
+                }
+
+                //mBinding.textSeekbar.setX(seekBar.getX() + val + seekBar.getThumbOffset() / 2);
+
+                float tmp = seekBar.getX() + val + seekBar.getThumbOffset() / 2;
+                Log.d("calDis: ","distance: "+distance+"\t val: "+val+"\t newtmp: "+tmp);
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+                mBinding.txtScanArea.setVisibility(View.GONE);
+                mBinding.txtBiggestArea.setVisibility(View.GONE);
+                mBinding.gifUpImage.setVisibility(View.GONE);
+                mBinding.gifDownImg.setVisibility(View.GONE);
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        });
+
+
+        List<Slidr.Step> steps = new ArrayList<>();
+        steps.add(new Slidr.Step("100M", 0, getResources().getColor(R.color.unselected_color), getResources().getColor(R.color.selection_color)));
+        steps.add(new Slidr.Step("1KM", 9, getResources().getColor(R.color.unselected_color), getResources().getColor(R.color.selection_color)));
+        steps.add(new Slidr.Step("5KM", 17, getResources().getColor(R.color.unselected_color), getResources().getColor(R.color.selection_color)));
+        steps.add(new Slidr.Step("", 27, getResources().getColor(R.color.unselected_color), getResources().getColor(R.color.selection_color)));
+       /* mBinding.sbSearch.addStep(steps);
+        mBinding.sbSearch.setMin(1);
+        mBinding.sbSearch.setTextMin("");
+        mBinding.sbSearch.setTextMax("50KM");
+        mBinding.sbSearch.setMax(27);
+        mBinding.sbSearch.setCurrentValue(10);
+        ticketRangeFormatter = new RangeValueFormatter();
+        mBinding.sbSearch.setListener(new Slidr.Listener() {
+            @Override
+            public void valueChanged(Slidr slidr, float currentValue) {
+                int i;
+                mBinding.txtScanArea.setVisibility(View.GONE);
+                mBinding.txtBiggestArea.setVisibility(View.GONE);
+                mBinding.gifUpImage.setVisibility(View.GONE);
+                mBinding.gifDownImg.setVisibility(View.GONE);
+
+                if (ticketRangeFormatter.format(currentValue).contains(" M")) {
+                    i = Integer.parseInt(ticketRangeFormatter.format(currentValue).replace(" M", ""));
+                    distance = i / 1000f;
+                } else {
+                    i = Integer.parseInt(ticketRangeFormatter.format(currentValue).replace(" KM", ""));
+                    distance = i;
+                }
+                Log.d("calDis: ","distance: "+distance);
+            }
+        });*/
+
+        this.getView().setOnKeyListener(new View.OnKeyListener() {
+            @Override
+            public boolean onKey(View v, int keyCode, KeyEvent event) {
+                if (keyCode == KeyEvent.KEYCODE_BACK) {
+                    getActivity().finish();
+                    return true;
+                }
+                return false;
+            }
+        });
+
+
+        DisplayMetrics dm = new DisplayMetrics();
+        getActivity().getWindowManager().getDefaultDisplay().getMetrics(dm);
+        height = dm.heightPixels;
+        Log.d("", "height435----" + String.valueOf(height));
+        //  int height = mBinding.logoFL.getMeasuredHeight();
+
+        //gridAdapter = new GridAdapter(categories, getActivity(), this);
+
+        GridLayoutManager gridLayoutManager = new GridLayoutManager(getActivity(), 2);
+        mBinding.gridView1.setLayoutManager(gridLayoutManager);
+
+
+        Paint paint = new Paint();
+        paint.setStrokeWidth(7);
+        paint.setColor(getResources().getColor(R.color.colorPrimary));
+        paint.setAntiAlias(true);
+//        paint.setPathEffect(new DashPathEffect(new float[]{25.0f, 25.0f}, 0));
+
+        //setting the horizontal and vertical dividers for the grid layout
+        /*mBinding.gridView1.addItemDecoration(
+                new HorizontalDividerItemDecoration.Builder(getActivity()).paint(paint).build());
+
+        mBinding.gridView1.addItemDecoration(
+                new VerticalDividerItemDecoration.Builder(getActivity()).paint(paint).build());*/
+        mBinding.gridView1.setItemAnimator(new DefaultItemAnimator());
+
+
+        ViewTreeObserver observer = mBinding.logoFL.getViewTreeObserver();
+        observer.addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+
+            @Override
+            public void onGlobalLayout() {
+                // TODO Auto-generated method stub
+                int headerLayoutHeight= mBinding.logoFL.getHeight()/2;
+                int headerLayoutWidth = mBinding.logoFL.getWidth();
+                Log.d("Load_First",""+headerLayoutHeight+" "+headerLayoutHeight);
+                gridAdapter = new GridAdapter(categories,headerLayoutHeight, getActivity(), FilterByDistanceFragment.this);
+                mBinding.gridView1.setAdapter(gridAdapter);
+                mBinding.logoFL .getViewTreeObserver().removeOnGlobalLayoutListener(
+                        this);
+            }
+        });
+
+        mBinding.gridView1.setAdapter(gridAdapter);
+        progressDialog = new ProgressDialog(getActivity());
+
+
+        loadCategory();
+
+        viewModel.getVideoApiStatus().observe(this, new Observer<Boolean>() {
+            @Override 
+            public void onChanged(@Nullable Boolean aBoolean) {
+                mBinding.whatsliveLogo.setImageResource(R.drawable.ic_watslive_logo);
+                mBinding.gifImageView.pause();
+                mBinding.gifImageView.setVisibility(View.GONE);
+            }
+        });
+
+        //Load ticker data
+
+         tickerObservable = Observable
+                .interval(TICKER_INTERVAL, TimeUnit.SECONDS)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Consumer<Long>() {
+                    @Override
+                    public void accept(Long aLong) throws Exception {
+               
